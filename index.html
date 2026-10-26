@@ -1279,11 +1279,14 @@ body.menu .vc:has(> .view.top){z-index:3}
         var q = inset(p.q.map(function (v) { return [v[0] * W, v[1] * H]; })); if (q.length < 3) return null; // too small to draw at this size
         var pts = ring(q), b = box(pts), c = cen(q);
         var ph = S.ph[i], f = fit(ph, q), dw = f.r[2], dh = f.r[3];
-        var url = Math.max(dw, dh) * (window.devicePixelRatio || 1) > 960 ? ph.full : ph.light;
-        return { pts: pts, b: b, c: c, ph: ph, url: url, r: f.r, a: b[2] * b[3] };
+        var big = Math.max(dw, dh) * (window.devicePixelRatio || 1) > 960, url = big && ready[ph.full] ? ph.full : ph.light; // a big piece shows the full photo once it is loaded, the light copy until then
+        return { pts: pts, b: b, c: c, ph: ph, url: url, big: big, r: f.r, a: b[2] * b[3] };
       }).filter(Boolean);
     }
-    function load(url) { return new Promise(function (ok) { var im = new Image(); im.src = url; (im.decode ? im.decode() : Promise.resolve()).then(ok, ok); setTimeout(ok, 1500); }); }
+    var ready = {}; // photos already loaded and decoded
+    function load(url) { return new Promise(function (ok) { if (ready[url]) return ok(); var im = new Image(); im.src = url; (im.decode ? im.decode() : Promise.resolve()).then(function () { ready[url] = im; ok(); }, ok); setTimeout(ok, 1500); }); }
+    // a big piece upgrades to the full photo only when it is decoded, so the swap never shows a blank frame
+    function upgrade(im, ph) { load(ph.full).then(function () { if (ready[ph.full] && im.parentNode && !im.classList.contains('out') && im._id === ph.id && im.getAttribute('src') !== ph.full) im.src = ph.full; }); }
     // the photo is laid out whole at its own proportions, and the piece's shape shows the part around its subject
     function place(im, sh) { im.style.left = sh.r[0].toFixed(1) + 'px'; im.style.top = sh.r[1].toFixed(1) + 'px'; im.style.width = sh.r[2].toFixed(1) + 'px'; im.style.height = sh.r[3].toFixed(1) + 'px'; }
     // draws a state; fresh photos fade in while the shapes morph, and the old photos stretch with them as they fade out
@@ -1298,11 +1301,11 @@ body.menu .vc:has(> .view.top){z-index:3}
         var t = x[0], p = x[1], cur = t.querySelector('img:not(.out)');
         if (!t._c) { var pts = []; for (var k = 0; k < NP; k++) pts.push(p.c); t.style.transition = 'none'; t.style.clipPath = poly(pts); t.offsetWidth; t.style.transition = ''; }
         t._c = p.c; t._ph = p.ph; t.classList.add('on'); t.style.clipPath = poly(p.pts);
-        if (cur && cur._id === p.ph.id && !fresh) { place(cur, p); if (cur.getAttribute('src') !== p.url && p.url === p.ph.full) cur.src = p.url; return; }
+        if (cur && cur._id === p.ph.id && !fresh) { place(cur, p); if (p.big) upgrade(cur, p.ph); return; }
         [].forEach.call(t.querySelectorAll('img'), function (im) { im.classList.add('out'); place(im, p); });
         var im = document.createElement('img'); im._id = p.ph.id; im.alt = p.ph.alt; im.draggable = false; im.decoding = 'async'; im.className = 'in';
         im.src = p.url; place(im, p); t.appendChild(im); im.offsetWidth;
-        var show = function () { im.classList.remove('in'); }; if (im.complete && im.naturalWidth) show(); else (im.decode ? im.decode() : Promise.reject()).then(show, function () { im.onload = show; });
+        var show = function () { im.classList.remove('in'); if (p.big) upgrade(im, p.ph); }; if (im.complete && im.naturalWidth) show(); else (im.decode ? im.decode() : Promise.reject()).then(show, function () { im.onload = show; });
       });
       // an old photo leaves only once the new one over it has faded in (or its piece has closed)
       setTimeout(function sweep() {
@@ -1318,17 +1321,16 @@ body.menu .vc:has(> .view.top){z-index:3}
       gl.parentNode.style.setProperty('--gp', pc(big.pts.map(function (v) { return [(v[0] - big.b[0]) / big.b[2] * 100, (v[1] - big.b[1]) / big.b[3] * 100]; })));
       gl.parentNode.style.setProperty('--gr', pc(ring([[0, 0], [100, 0], [100, 100], [0, 100]])));
     }
-    function prep(S) { return Promise.all(shapes(S).map(function (p) { return load(p.url); })); }
+    function prep(S) { return Promise.all(shapes(S).map(function (p) { return load(p.ph.light).then(function () { if (p.big) return load(p.ph.full); }); })); }
     function go(dir) {
       if (busy || !hist.length || (dir < 0 && at <= 0)) return;
       busy = true;
       var S = dir > 0 ? (hist[at + 1] || ahead || make()) : hist[at - 1];
       if (dir > 0 && !hist[at + 1]) { hist.push(S); ahead = null; }
       at += dir;
-      prep(S).then(function () {
-        draw(S, true);
-        setTimeout(function () { busy = false; if (!hist[at + 1] && !ahead) { ahead = make(); prep(ahead); } }, reduce ? 300 : 1150);
-      });
+      // moves at once: a photo still loading keeps the old one in its place until it can fade in
+      window.gmBusy = true; draw(S, true);
+      setTimeout(function () { busy = false; window.gmBusy = false; if (!hist[at + 1] && !ahead) { ahead = make(); prep(ahead); } }, reduce ? 300 : 1150);
     }
     // first screen: shown at once, no morph
     (function first() { // waits until the stage has a size: inside some frames the page starts out with none
@@ -1568,14 +1570,14 @@ body.menu .vc:has(> .view.top){z-index:3}
     old.removeAttribute('id'); old.setAttribute('aria-hidden', 'true'); old.inert = true;
     [].forEach.call(old.querySelectorAll('[id]'), function (el) { el.removeAttribute('id'); });
     old.style.cssText = 'visibility:visible;z-index:3;pointer-events:none';
-    document.body.appendChild(old); old.scrollTop = st;
+    v.parentNode.insertBefore(old, v); old.scrollTop = st; // the old copy sits in the page's own frame, under the page, so the new page always slides in over it
     fillSvc(i); history.pushState({ k: 'svc' }, '', '#svc-' + (i + 1));
     var t = reduce ? '0.01s' : '.9s';
-    v.style.transition = 'none'; v.style.zIndex = 4; v.style.transform = 'translate(' + d[0] * 100 + '%,' + d[1] * 100 + '%)';
+    v._c.style.zIndex = 4; v.style.transition = 'none'; v.style.zIndex = 4; v.style.transform = 'translate(' + d[0] * 100 + '%,' + d[1] * 100 + '%)';
     v.getBoundingClientRect();
     v.style.transition = old.style.transition = 'transform ' + t + ' var(--ease)';
     v.style.transform = 'translate(0,0)'; old.style.transform = 'translate(' + -d[0] * 40 + '%,' + -d[1] * 40 + '%)';
-    setTimeout(function () { v.style.cssText = ''; old.remove(); }, reduce ? 30 : 920);
+    setTimeout(function () { v.style.cssText = ''; v._c.style.zIndex = ''; old.remove(); }, reduce ? 30 : 920);
   }
 
   /* next from or to a page that is not a solution: the same diagonal slide, between two pages */
@@ -1841,7 +1843,7 @@ body.menu .vc:has(> .view.top){z-index:3}
     }, true);
   });
   /* clicking the stage around the cards closes the menu */
-  addEventListener('click', function (e) { if (body.classList.contains('menu') && !e.target.closest('.view, .mhd') && window.sReturn) sReturn(); }); // the menu's background leads back to the landing
+  addEventListener('click', function (e) { if (body.classList.contains('menu') && !e.target.closest('.view, .mhd, #ct, #lb') && window.sReturn) sReturn(); }); // the menu's background leads back to the landing (not a click inside contact or the lightbox over it)
   /* pan the row with the pointer (desktop) or a finger (phone); the pointer and the wheel move it only over the band of the cards */
   function onRow(e) { var r = slots()[0]; return e.clientY >= r.y && e.clientY <= r.y + r.h; }
   function repan() { if (!body.classList.contains('menu') || menuBusy) return; var S = slots(); ORDER.forEach(function (k, i) { cardStyle(views[keyOf(k)], S[i]); }); }
@@ -1955,7 +1957,7 @@ body.menu .vc:has(> .view.top){z-index:3}
   var gmEl = document.getElementById('gm');
   /* over a photo (the gallery, or a page's opening photo) each word of the top bar and the logo take the tone, black or white, that reads on the photo right under them */
   (function () {
-    var cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true }), px = {}; cv.width = cv.height = 32; // each photo is shrunk to 32x32 once and kept, so reading tones never stalls an animation
+    var cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true }), px = {}, pend = false; cv.width = cv.height = 32; // each photo is shrunk to 32x32 once and kept, so reading tones never stalls an animation
     function keep(src, bm) { cx.clearRect(0, 0, 32, 32); cx.drawImage(bm, 0, 0, 32, 32); px[src] = cx.getImageData(0, 0, 32, 32).data; }
     // the 32x32 copy is made off the main thread (a big photo decoded on it would stall whatever is moving), or on the main thread only when it is idle
     function shrink(im, src) {
@@ -1975,10 +1977,12 @@ body.menu .vc:has(> .view.top){z-index:3}
       var nw = im.naturalWidth, nh = im.naturalHeight, k = Math.max(r.width / nw, r.height / nh), dw = nw * k, dh = nh * k;
       var op = getComputedStyle(im).objectPosition.split(' ').map(function (q) { return parseFloat(q) / 100; }); if (isNaN(op[0])) op = [.5, .5];
       var u = (x - r.left - (r.width - dw) * op[0]) / dw, w = (y - r.top - (r.height - dh) * (isNaN(op[1]) ? .5 : op[1])) / dh;
-      try { var src = im.currentSrc, a = px[src]; if (!a) { shrink(im, src); return null; } var i = (Math.min(31, Math.max(0, Math.floor(w * 32))) * 32 + Math.min(31, Math.max(0, Math.floor(u * 32)))) * 4; return (.2126 * a[i] + .7152 * a[i + 1] + .0722 * a[i + 2]) / 255; } catch (er) { return null; }
+      try { var src = im.currentSrc, a = px[src]; if (!a) { shrink(im, src); pend = true; return null; } var i = (Math.min(31, Math.max(0, Math.floor(w * 32))) * 32 + Math.min(31, Math.max(0, Math.floor(u * 32)))) * 4; return (.2126 * a[i] + .7152 * a[i + 1] + .0722 * a[i + 2]) / 255; } catch (er) { return null; }
     }
     function tone() {
       var v = body.classList.contains('closing') ? document.querySelector('.view.top') : views[cur]; if (!v) return;
+      if (v.id === 'v-gallery' && window.gmBusy) return; // the pieces are moving: the bar keeps its tone until they settle
+      pend = false;
       var live = !body.classList.contains('menu') || body.classList.contains('closing'); // while a page grows out of its card its bar already takes its tones
       if (v.id === 'v-gallery') v.classList.toggle('onph', live);
       var on = live && v.classList.contains('onph');
@@ -1988,6 +1992,7 @@ body.menu .vc:has(> .view.top){z-index:3}
         if (on && r.width) [[.2, .3], [.8, .3], [.2, .7], [.8, .7], [.5, .5]].forEach(function (q) { var l = lumAt(r.left + r.width * q[0], r.top + r.height * q[1]); if (l != null) { t += l; n++; } });
         return { e: e, m: n ? t / n : null };
       });
+      if (pend) { setTimeout(tone, 150); return; } // a photo under the bar is still being read: keep the current tone until it is
       var ms = it.filter(function (x) { return x.m != null; }).map(function (x) { return x.m; }), avg = ms.length ? ms.reduce(function (a, b) { return a + b; }, 0) / ms.length : 0;
       var dark = on && (v._dark ? avg > .52 : avg > .6); v._dark = dark; // the whole bar takes the tone of the photo under it as a whole
       it.forEach(function (x) { x.e.classList.toggle('ilt', on && x.m != null && (dark ? x.m > .2 : x.m > .84)); }); // an item only breaks ranks over a patch so dark or so light its tone could not be read
