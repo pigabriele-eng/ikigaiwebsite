@@ -1302,10 +1302,14 @@ body.menu .vc:has(> .view.top){z-index:3}
         if (!t._c) { var pts = []; for (var k = 0; k < NP; k++) pts.push(p.c); t.style.transition = 'none'; t.style.clipPath = poly(pts); t.offsetWidth; t.style.transition = ''; }
         t._c = p.c; t._ph = p.ph; t.classList.add('on'); t.style.clipPath = poly(p.pts);
         if (cur && cur._id === p.ph.id && !fresh) { place(cur, p); if (p.big) upgrade(cur, p.ph); return; }
-        [].forEach.call(t.querySelectorAll('img'), function (im) { im.classList.add('out'); place(im, p); });
-        var im = document.createElement('img'); im._id = p.ph.id; im.alt = p.ph.alt; im.draggable = false; im.decoding = 'async'; im.className = 'in';
-        im.src = p.url; place(im, p); t.appendChild(im); im.offsetWidth;
-        var show = function () { im.classList.remove('in'); if (p.big) upgrade(im, p.ph); }; if (im.complete && im.naturalWidth) show(); else (im.decode ? im.decode() : Promise.reject()).then(show, function () { im.onload = show; });
+        // a leaving photo stays exactly as it was while the new one fades in over it; only if the new piece reaches past it does it move, whole and at its own proportions, never stretched
+        [].forEach.call(t.querySelectorAll('img'), function (im) { im.classList.add('out'); var r = im._r, b = p.b; if (im._ph && r && (r[0] > b[0] + .5 || r[1] > b[1] + .5 || r[0] + r[2] < b[0] + b[2] - .5 || r[1] + r[3] < b[1] + b[3] - .5)) place(im, fit(im._ph, p.pts)); });
+        var im = document.createElement('img'); im._id = p.ph.id; im._ph = p.ph; im.alt = p.ph.alt; im.draggable = false; im.decoding = 'async'; im.className = 'in';
+        place(im, p); t.appendChild(im);
+        // a big piece fades in only with its full photo, so it never shows the light copy first
+        var show = function () { if (im._id === p.ph.id) im.classList.remove('in'); if (p.big && im.getAttribute('src') !== p.ph.full) upgrade(im, p.ph); };
+        var put = function (url) { im.src = url; if (im.complete && im.naturalWidth) show(); else (im.decode ? im.decode() : Promise.reject()).then(show, function () { im.onload = show; }); };
+        if (p.big && !ready[p.ph.full]) load(p.ph.full).then(function () { put(ready[p.ph.full] ? p.ph.full : p.url); }); else put(p.big ? p.ph.full : p.url);
       });
       // an old photo leaves only once the new one over it has faded in (or its piece has closed)
       setTimeout(function sweep() {
