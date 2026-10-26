@@ -233,6 +233,7 @@ body.menu:not(.closing) .mbg{opacity:1;transition:opacity .9s ease .1s}
 @media (max-width:760px){.def{white-space:normal;font-size:15px;text-wrap:balance}}
 @keyframes up{from{transform:translateY(110%)}}
 body.menu .def{opacity:0}
+.view.intro .def{opacity:0;visibility:hidden} /* the white screen while the photos stack up stays empty (Gabriele) */
 .hint{position:absolute;left:var(--pad);bottom:calc(var(--pad) + env(safe-area-inset-bottom,0px));display:none}
 
 /* menu stage */
@@ -2476,8 +2477,7 @@ body.menu .vc:has(> .view.top){z-index:3}
     function sOpen2(now) {
       if (sLive) return; sLive = true;
       sShow(sl[0], SSP[sn]); sl[0].classList.add('vis'); sl[0].style.transition = 'none';
-      // the first full-screen photo carries no words (Gabriele); the logo still takes its tone from it
-      if (!now) { var im0 = sl[0], f0 = function () { logoTone(stLay(stx[0], im0, SSP[sn % SSP.length], sn)); }; if (im0.complete && im0.naturalWidth) f0(); else im0.addEventListener('load', f0, { once: true }); }
+      if (!now) sLay(0, sn);
       var r = stack.getBoundingClientRect();
       if (r.width < 2) r = { left: W / 2, top: H / 2, width: 0, height: 0 };
       ss.style.transition = 'none'; ss.style.background = 'transparent'; sBox(r); ss.classList.add('on'); ss.getBoundingClientRect();
