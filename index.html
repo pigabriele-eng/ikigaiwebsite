@@ -181,6 +181,7 @@ body.menu:not(.closing) .mbg{opacity:1;transition:opacity .9s ease .1s}
 /* the ikigai definitions come with each photo, in a different shape and place each time, always clear of the subject */
 .sst{position:absolute;margin:0;z-index:2;color:#fff;opacity:0;transition:opacity 1.4s ease;font-weight:400;letter-spacing:-.015em;line-height:1.18;pointer-events:none}
 .sst.vis{opacity:1;transition:opacity 1.6s ease .5s}
+#ss .sst{display:none}
 .sst{text-shadow:0 1px 2px rgba(0,0,0,.55),0 2px 10px rgba(0,0,0,.45),0 0 26px rgba(0,0,0,.3)}
 .sst.dk{color:#141416;text-shadow:0 1px 2px rgba(255,255,255,.6),0 2px 10px rgba(255,255,255,.5),0 0 26px rgba(255,255,255,.35)}
 /* a soft shade behind the words, dark for light words and light for dark ones, so they read on any photo without a box */
@@ -541,9 +542,9 @@ body.menu:not(.closing) #v-gallery .ggrid,body.menu #v-gallery:not(.top) .ggrid{
 #v-gallery .gm{position:absolute;left:calc(var(--pad) - 5px);right:calc(var(--pad) - 5px);top:calc(var(--pad) - 5px);bottom:calc(var(--pad) - 5px);z-index:2;transition:opacity .7s var(--ease);touch-action:none}
 #v-gallery .gmt{position:absolute;inset:0;clip-path:polygon(0 0,0 0,0 0);transition:clip-path 1.1s var(--ease);pointer-events:none;will-change:clip-path}
 #v-gallery .gmt.on{pointer-events:auto;cursor:zoom-in}
-#v-gallery .gmt img{position:absolute;display:block;object-fit:cover;max-width:none;transition:left 1.1s var(--ease),top 1.1s var(--ease),width 1.1s var(--ease),height 1.1s var(--ease),opacity .9s var(--ease)}
+#v-gallery .gmt img{position:absolute;display:block;object-fit:cover;max-width:none;transform-origin:0 0;will-change:transform,opacity;backface-visibility:hidden;transition:transform 1.1s var(--ease),opacity .9s var(--ease)} /* photos move by transform only, which the graphics card does on its own: no re-layout or re-scaling of big photos on every frame */
 #v-gallery .gmt img.in{opacity:0;transition:none}
-#v-gallery .gmt img.out{opacity:1;transition:left 1.1s var(--ease),top 1.1s var(--ease),width 1.1s var(--ease),height 1.1s var(--ease)} /* the old photo stays solid underneath while the new one fades in on top, so the page never shows through (no white flash) */
+#v-gallery .gmt img.out{opacity:1;transition:transform 1.1s var(--ease)} /* the old photo stays solid underneath while the new one fades in on top, so the page never shows through (no white flash) */
 #v-gallery .gm.still .gmt,#v-gallery .gm.still img{transition:none}
 body.menu:not(.closing) #v-gallery .gm,body.menu #v-gallery:not(.top) .gm{opacity:0}
 
@@ -1148,7 +1149,7 @@ body.menu .vc:has(> .view.top){z-index:3}
     [['u14', 27, 38]],
     [['pe6', 25, 35], ['u07', 70, 40]],
     [['de9', 60, 35], ['u04', 55, 40]]
-  ], SUBJ_AT = {}, DEALT = [];
+  ], SUBJ_AT = {}, DEALT = [], REDEAL = []; // REDEAL: new card photos, run each time the landing comes back
   // crops a cover-fitted photo so its subject lands as near the middle of its box as the photo allows
   function aimAt(img) {
     var f = SUBJ_AT[img.getAttribute('src')], bw = img.clientWidth, bh = img.clientHeight;
@@ -1287,7 +1288,15 @@ body.menu .vc:has(> .view.top){z-index:3}
     // a big piece upgrades to the full photo only when it is decoded, so the swap never shows a blank frame
     function upgrade(im, ph) { load(ph.full).then(function () { if (ready[ph.full] && im.parentNode && !im.classList.contains('out') && im._id === ph.id && im.getAttribute('src') !== ph.full) im.src = ph.full; }); }
     // the photo is laid out whole at its own proportions, and the piece's shape shows the part around its subject
-    function place(im, sh) { im.style.left = sh.r[0].toFixed(1) + 'px'; im.style.top = sh.r[1].toFixed(1) + 'px'; im.style.width = sh.r[2].toFixed(1) + 'px'; im.style.height = sh.r[3].toFixed(1) + 'px'; }
+    // the photo jumps to its new box at once and is drawn back where it was with a transform, which then eases away (FLIP)
+    function place(im, sh) {
+      var o = im._r, r = sh.r;
+      im.style.left = r[0].toFixed(1) + 'px'; im.style.top = r[1].toFixed(1) + 'px'; im.style.width = r[2].toFixed(1) + 'px'; im.style.height = r[3].toFixed(1) + 'px'; im._r = r.slice();
+      if (!o || st.classList.contains('still')) { im.style.transform = ''; return; }
+      var tr = im.style.transition; im.style.transition = 'none';
+      im.style.transform = 'translate(' + (o[0] - r[0]).toFixed(1) + 'px,' + (o[1] - r[1]).toFixed(1) + 'px) scale(' + (o[2] / r[2]).toFixed(4) + ',' + (o[3] / r[3]).toFixed(4) + ')';
+      im.offsetWidth; im.style.transition = tr; im.style.transform = '';
+    }
     // draws a state; fresh photos fade in while the shapes morph, and the old photos stretch with them as they fade out
     function draw(S, fresh) {
       var sh = shapes(S), free = tiles.slice(), pick = [];
@@ -1365,6 +1374,7 @@ body.menu .vc:has(> .view.top){z-index:3}
       // a tap opens the photo in the lightbox, with every gallery photo to step through
       hit: function (e) { var t = e.target.closest('.gmt'); return t && t.classList.contains('on') && !(st._swiped > Date.now() - 400) ? t._ph : null; },
       list: P,
+      next: function () { if (st.clientWidth && st.clientHeight) go(1); },
       tile: function (srcUrl) { var t = tiles.filter(function (t) { return t.classList.contains('on') && t._ph && t._ph.full === srcUrl; })[0]; return t && t.querySelector('img:not(.out)'); }
     };
   })();
@@ -1519,6 +1529,16 @@ body.menu .vc:has(> .view.top){z-index:3}
     }
     fillSvc(0); fitLead();
   })();
+  // back on the landing: every solution card deals itself another photo from its pool
+  REDEAL.push(function () {
+    POOL.forEach(function (pool, i) {
+      var left = pool.filter(function (q) { return 'img/' + q[0] + '.jpg' !== SVC[i].img; }); if (!left.length) return;
+      var q = left[Math.floor(Math.random() * left.length)], src = 'img/' + q[0] + '.jpg', cl = views['s' + i], h = cl && cl.querySelector('#svc-img');
+      SVC[i].img = DEALT[i] = src;
+      if (h) { h.style.objectPosition = q[1] + '% ' + q[2] + '%'; h.src = src; }
+      if (svcNow === i) setHero(src);
+    });
+  });
   if (cur === 'svc') { var si = +((location.hash.split('-')[1]) || 1) - 1; fillSvc(si >= 0 && si < 4 ? si : 0); }
   show(cur);
 
@@ -1987,14 +2007,15 @@ body.menu .vc:has(> .view.top){z-index:3}
       var on = live && v.classList.contains('onph');
       // one tone for the whole bar whenever one tone reads everywhere under it; only an item where it would not takes the other
       var it = [].map.call(v.querySelectorAll('.hd .c1, .hd .c2, .hd .c4, .hd .watch'), function (e) {
-        var t = 0, n = 0, r = e.getBoundingClientRect();
-        if (on && r.width) [[.2, .3], [.8, .3], [.2, .7], [.8, .7], [.5, .5]].forEach(function (q) { var l = lumAt(r.left + r.width * q[0], r.top + r.height * q[1]); if (l != null) { t += l; n++; } });
-        return { e: e, m: n ? t / n : null };
+        var t = 0, n = 0, lo = 1, hi = 0, r = e.getBoundingClientRect();
+        if (on && r.width) [[.1, .3], [.5, .3], [.9, .3], [.1, .7], [.5, .7], [.9, .7], [.3, .5], [.7, .5]].forEach(function (q) { var l = lumAt(r.left + r.width * q[0], r.top + r.height * q[1]); if (l != null) { t += l; n++; lo = Math.min(lo, l); hi = Math.max(hi, l); } });
+        return { e: e, m: n ? t / n : null, lo: lo, hi: hi };
       });
       if (pend) { setTimeout(tone, 150); return; } // a photo under the bar is still being read: keep the current tone until it is
       var ms = it.filter(function (x) { return x.m != null; }).map(function (x) { return x.m; }), avg = ms.length ? ms.reduce(function (a, b) { return a + b; }, 0) / ms.length : 0;
       var dark = on && (v._dark ? avg > .52 : avg > .6); v._dark = dark; // the whole bar takes the tone of the photo under it as a whole
-      it.forEach(function (x) { x.e.classList.toggle('ilt', on && x.m != null && (dark ? x.m > .2 : x.m > .84)); }); // an item only breaks ranks over a patch so dark or so light its tone could not be read
+      // an item only breaks ranks where the bar's tone would vanish on part of it: it takes the tone that reads best on its worst patch
+      it.forEach(function (x) { var dk = 1 * x.lo, lt = 1 - x.hi; x.e.classList.toggle('ilt', on && x.m != null && (dark ? dk + .12 >= lt : dk > lt + .12)); });
     }
     setInterval(tone, 400); new MutationObserver(function () { setTimeout(tone, 60); }).observe(body, { attributes: true, attributeFilter: ['class'] });
   })();
@@ -2141,6 +2162,7 @@ body.menu .vc:has(> .view.top){z-index:3}
       }
       (nx.decode ? nx.decode() : Promise.resolve()).then(function () { aim(nx); requestAnimationFrame(go); }, go);
     }
+    REDEAL.push(function () { if (n > 1) swap((shown + 1 + Math.floor(Math.random() * (n - 1))) % n); }); // the latest card gets another photo too
     function size() { var h = car.clientHeight, w = h * (car.closest('#v-racing') ? .42 : .74); car.style.setProperty('--gw', w + 'px'); pitch = w + 10; } // racing: tall, thin strips
     var last = 0;
     function tick(now) {
@@ -2488,7 +2510,7 @@ body.menu .vc:has(> .view.top){z-index:3}
     }
     function logoTone(m) { if (!m) return; slogo.classList.toggle('dk', lumIn(m, { left: W / 2 - 100, right: W / 2 + 100, top: 12, bottom: 64 }) > .58); }
     function sLay(i, n) { // lay out the words and logo for the photo in layer i, once it has loaded
-      var img = sl[i], p = SSP[n % SSP.length], go = function () { var m = stLay(stx[i], img, p, n); logoTone(m); stx[i].classList.add('vis'); stx[1 - i].classList.remove('vis'); };
+      var img = sl[i], p = SSP[n % SSP.length], go = function () { logoTone(lumMap(img, p)); }; // no words on the landing photos (Gabriele, 2026-10-26)
       if (img.complete && img.naturalWidth) go(); else img.addEventListener('load', go, { once: true });
     }
     // the frame grows from the stack to the whole screen, holding the stack's last photo
@@ -2545,6 +2567,7 @@ body.menu .vc:has(> .view.top){z-index:3}
         ALL.forEach(function (j) { views[j].style.cssText = ''; views[j]._c.style.cssText = ''; views[j].classList.remove('top', 'mcard'); });
         menuBusy = false; sGone = false; sLive = true; ss.style.cssText = ''; ss.classList.remove('go'); mbgEl.style.cssText = '';
         sLay(0, sn); sTimer = setTimeout(sNext, 6200);
+        REDEAL.forEach(function (f) { try { f(); } catch (e) {} }); if (GM) GM.next(); // hidden under the landing: the cards show new photos next time
       }, reduce ? 30 : 1050);
     };
     // checking aid: shows photo i full screen with its words, as the landing would
