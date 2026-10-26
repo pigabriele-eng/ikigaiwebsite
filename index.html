@@ -157,6 +157,7 @@ body.menu .hd .c3,body.menu .hd .c4,body.menu .hd .watch{opacity:0;pointer-event
 body.menu:not(.closing) .view .hd,body.menu .view:not(.top) .hd{opacity:0;transition:opacity .6s var(--ease)} /* the page's bar and the bar over the menu cross-fade in the same place, so a change of colour is a smooth fade */
 body.menu .mhd{opacity:1;visibility:visible;transition:opacity .6s var(--ease)}
 body.menu .mhd :is(.c3,.c4,.watch){opacity:1;pointer-events:auto}
+body.menu.ret .mhd :is(.c1,.c3,.c4,.watch){opacity:0;pointer-events:none;transition:opacity .7s var(--ease)} /* back to the landing: the motto and the clock fade out with the cards, the logo stays */
 .hback{position:absolute;left:0;top:calc(100vh - 84px);top:calc(100dvh - 84px - env(safe-area-inset-bottom,0px));transform:translateY(-100%);z-index:3;color:#fff;font-size:clamp(22px,2.6vw,40px);line-height:1;letter-spacing:-.04em;text-shadow:0 1px 2px rgba(0,0,0,.35),0 2px 18px rgba(0,0,0,.3);transition:opacity .45s var(--ease),color .6s var(--ease),text-shadow .6s var(--ease)}
 .view .hbg ~ .pg > .ptop{position:relative}
 .view:not(.onph) .hback{color:var(--ink);text-shadow:none;transition:opacity .45s var(--ease),color .6s var(--ease),text-shadow .6s var(--ease)} /* white on the photo, the page's ink once the photo has faded */
@@ -2556,11 +2557,11 @@ body.menu .vc:has(> .view.top){z-index:3}
       [].forEach.call(sl, function (im) { im.style.transition = ''; });
       mbgEl.style.transition = 'none'; mbgEl.style.opacity = 1; // the black and white stays put while the colour comes back over it
       ss.style.transition = 'opacity .95s ease'; ss.style.opacity = 1;
-      body.classList.add('closing');
+      body.classList.add('closing', 'ret');
       var S = slots();
       ORDER.forEach(function (j, i) { var v = views[keyOf(j)], a = away(i, S[i]); v._c.style.transition = 'transform ' + T + ' var(--ease), width ' + T + ' var(--ease)'; v.classList.remove('top'); cardStyle(v, S[i], a[0], a[1]); });
       setTimeout(function () {
-        body.classList.remove('menu', 'closing', 'opening');
+        body.classList.remove('menu', 'closing', 'opening', 'ret');
         ALL.forEach(function (j) { views[j].style.cssText = ''; views[j]._c.style.cssText = ''; views[j].classList.remove('top', 'mcard'); });
         menuBusy = false; sGone = false; sLive = true; ss.style.cssText = ''; ss.classList.remove('go'); mbgEl.style.cssText = '';
         sLay(0, sn); sTimer = setTimeout(sNext, 6200);
