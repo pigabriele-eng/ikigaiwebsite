@@ -117,7 +117,7 @@ body.menu .hd .c3,body.menu .hd .c4,body.menu .hd .watch{opacity:0;pointer-event
 .watch .sun{fill:var(--ink)}
 .clock.live .cs{animation:tick 1s steps(1,end) infinite}
 @keyframes tick{50%{opacity:0}}
-@media (prefers-reduced-motion:reduce){.clock.live .cs{animation:none}}
+
 .watch .ghost{fill:var(--red);opacity:0;transition:opacity .2s}
 .watch:hover .ghost,.watch.drag .ghost{opacity:1}
 .watch.tt .sun{fill:var(--red)}
@@ -382,7 +382,7 @@ body.menu #v-svc .hero .vt{font-size:clamp(90px,15vw,240px)}
   .latest{grid-template-columns:1fr}
   .cal li{grid-template-columns:1fr 1fr}
 }
-@media (prefers-reduced-motion:reduce){*{transition-duration:.01s!important;animation:none!important}}
+
 
 /* About: one font, one colour, one size for everything below the page title (Gabriele 2026-10-24, "for now") */
 #v-about{--abody:clamp(20px,1.9vw,28px)}
@@ -468,7 +468,7 @@ body.menu:not(.closing) #v-gallery .ggrid,body.menu #v-gallery:not(.top) .ggrid{
 #v-gallery .gmt img.out{opacity:0;transition:left 1.1s var(--ease),top 1.1s var(--ease),width 1.1s var(--ease),height 1.1s var(--ease),opacity .5s ease-out}
 #v-gallery .gm.still .gmt,#v-gallery .gm.still img{transition:none}
 body.menu:not(.closing) #v-gallery .gm,body.menu #v-gallery:not(.top) .gm{opacity:0}
-@media (prefers-reduced-motion:reduce){#v-gallery .gmt,#v-gallery .gmt img{transition:opacity .3s}}
+
 
 /* page frames: only shape anything in the menu, where they move and crop the pages as cards */
 .vc{position:absolute;left:0;top:0;width:100vw;height:100vh;height:100dvh;overflow:hidden;transform-origin:0 0;pointer-events:none}
@@ -484,6 +484,7 @@ body.menu .vc:has(> .view.top){z-index:3}
 .ggrid img{display:block;width:100%;height:auto;transition:scale .8s var(--ease)}
 .ggrid figure:hover img{scale:1.03}
 @media (max-width:760px){.ggrid{columns:2 140px;column-gap:8px}.ggrid figure{margin-bottom:8px}}
+.arw{display:inline-block;width:.72em;height:.72em;vertical-align:.02em;overflow:visible}
 </style>
 </head>
 <body>
@@ -957,7 +958,8 @@ body.menu .vc:has(> .view.top){z-index:3}
 <script>
 (function () {
   var root = document.documentElement, body = document.body;
-  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // every transition plays on every device, even when the phone asks for reduced motion: the site is meant to look and move the same everywhere (Gabriele, 2026-10-26)
+  var reduce = false;
   var ORDER = ['services', 'racing', 'about', 'gallery'];
   var views = {}; ORDER.concat(['svc']).forEach(function (k) { views[k] = document.getElementById('v-' + k); });
   // each page sits in a frame; in the menu the frame both moves the page and crops it to card width, all on the graphics card, so the cards glide instead of repainting every frame
@@ -1360,7 +1362,8 @@ body.menu .vc:has(> .view.top){z-index:3}
   SVC.forEach(function (d, i) { if (DEALT[i]) d.img = DEALT[i]; });
   var heroImg = sview.querySelector('#svc-img'); heroImg.addEventListener('load', function () { aimAt(heroImg); });
   function setHero(src) { heroImg.style.objectPosition = FOCUS[src] || ''; if (heroImg.getAttribute('src') !== src) heroImg.src = src; else aimAt(heroImg); }
-  var DIAG = [[1, -1, '↗'], [1, 1, '↘'], [-1, 1, '↙'], [-1, -1, '↖']]; // each solution leaves in its own diagonal: x right, y down
+  var ARW = function (deg) { return '<svg class="arw" viewBox="0 0 16 16" aria-hidden="true" style="transform:rotate(' + deg + 'deg)"><path d="M3 13L13 3M5.5 3H13V10.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>'; }; // drawn, not a character: phones show arrow characters as emoji
+  var DIAG = [[1, -1, ARW(0)], [1, 1, ARW(90)], [-1, 1, ARW(180)], [-1, -1, ARW(270)]]; // each solution leaves in its own diagonal: x right, y down
   function fillSvc(i) {
     var d = SVC[i]; svcNow = i;
     setHero(d.img);
