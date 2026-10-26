@@ -542,9 +542,10 @@ body.menu:not(.closing) #v-gallery .ggrid,body.menu #v-gallery:not(.top) .ggrid{
 #v-gallery .gm{position:absolute;left:calc(var(--pad) - 5px);right:calc(var(--pad) - 5px);top:calc(var(--pad) - 5px);bottom:calc(var(--pad) - 5px);z-index:2;transition:opacity .7s var(--ease);touch-action:none}
 #v-gallery .gmt{position:absolute;inset:0;clip-path:polygon(0 0,0 0,0 0);transition:clip-path 1.1s var(--ease);pointer-events:none;will-change:clip-path}
 #v-gallery .gmt.on{pointer-events:auto;cursor:zoom-in}
-#v-gallery .gmt img{position:absolute;display:block;object-fit:cover;max-width:none;transform-origin:0 0;will-change:transform,opacity;backface-visibility:hidden;transition:transform 1.1s var(--ease),opacity .9s var(--ease)} /* photos move by transform only, which the graphics card does on its own: no re-layout or re-scaling of big photos on every frame */
+#v-gallery .gmt img{position:absolute;display:block;object-fit:cover;max-width:none;transform-origin:0 0;will-change:transform,opacity;backface-visibility:hidden;transition:transform 1.1s var(--ease),opacity 1.2s cubic-bezier(.45,0,.25,1) .35s} /* the shapes start moving first; the new photo fades in while they move */ /* photos move by transform only, which the graphics card does on its own: no re-layout or re-scaling of big photos on every frame */
 #v-gallery .gmt img.in{opacity:0;transition:none}
-#v-gallery .gmt img.out{opacity:1;transition:transform 1.1s var(--ease)} /* the old photo stays solid underneath while the new one fades in on top, so the page never shows through (no white flash) */
+#v-gallery .gmt img.out{opacity:1;transition:transform 1.1s var(--ease)}
+#v-gallery .gmt img.out.gone{opacity:0;transition:transform 1.1s var(--ease),opacity 1s cubic-bezier(.45,0,.25,1) .7s} /* a soft crossfade: the new photo fades in over 1.5s while the old one fades away a little behind it */ /* the old photo stays solid underneath while the new one fades in on top, so the page never shows through (no white flash) */
 #v-gallery .gm.still .gmt,#v-gallery .gm.still img{transition:none}
 body.menu:not(.closing) #v-gallery .gm,body.menu #v-gallery:not(.top) .gm{opacity:0}
 
@@ -1307,7 +1308,7 @@ body.menu .vc:has(> .view.top){z-index:3}
         var im = document.createElement('img'); im._id = p.ph.id; im._ph = p.ph; im.alt = p.ph.alt; im.draggable = false; im.decoding = 'async'; im.className = 'in';
         place(im, p); t.appendChild(im);
         // a big piece fades in only with its full photo, so it never shows the light copy first
-        var show = function () { if (im._id === p.ph.id) im.classList.remove('in'); if (p.big && im.getAttribute('src') !== p.ph.full) upgrade(im, p.ph); };
+        var show = function () { if (im._id === p.ph.id) { im.offsetWidth; im.classList.remove('in'); /* painted once at 0 first, or a cached photo would skip its fade and swap at once */ [].forEach.call(t.querySelectorAll('img.out'), function (o) { o.classList.add('gone'); }); } if (p.big && im.getAttribute('src') !== p.ph.full) upgrade(im, p.ph); };
         var put = function (url) { im.src = url; if (im.complete && im.naturalWidth) show(); else (im.decode ? im.decode() : Promise.reject()).then(show, function () { im.onload = show; }); };
         if (p.big && !ready[p.ph.full]) load(p.ph.full).then(function () { put(ready[p.ph.full] ? p.ph.full : p.url); }); else put(p.big ? p.ph.full : p.url);
       });
@@ -1316,7 +1317,7 @@ body.menu .vc:has(> .view.top){z-index:3}
         var wait = false;
         [].forEach.call(st.querySelectorAll('img.out'), function (im) { var t = im.parentNode, nw = t.querySelector('img:not(.out)'); if (!t.classList.contains('on') || (nw && !nw.classList.contains('in'))) im.remove(); else wait = true; });
         if (wait) setTimeout(sweep, 400);
-      }, 1400);
+      }, 1900);
       // the menu card shows the biggest photo on screen, and lands back on it
       var big = sh.slice().sort(function (a, b) { return b.a - a.a; })[0]; if (!big) return;
       if (gl.getAttribute('src') !== big.ph.full) { gl.src = big.ph.full; gl.alt = big.ph.alt; }
