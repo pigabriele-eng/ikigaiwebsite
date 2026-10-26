@@ -1494,6 +1494,7 @@ body.menu .vc:has(> .view.top){z-index:3}
     // on desktop every card fits on screen side by side
     var n = ORDER.length, gap = mobile ? 14 : W * 0.03;
     var sh = mobile ? H * 0.62 : H * 0.76, sw = Math.min(sh * 0.66, mobile ? W * 0.74 : (W * 0.92 - (n - 1) * gap) / n), top = (H - sh) / 2;
+    if (mobile) sw = Math.min(sw, W * sh / H); // a card is never wider than its page, so the card in front sits exactly in the middle
     rowW = n * sw + (n - 1) * gap;
     var left = mobile ? (W - sw) / 2 - idx(cur) * (sw + gap) : (W - rowW) / 2;
     return ORDER.map(function (k, i) { return { x: left + i * (sw + gap) + pan, y: top, w: sw, h: sh }; });
@@ -1614,8 +1615,22 @@ body.menu .vc:has(> .view.top){z-index:3}
   });
   var tp = null;
   addEventListener('touchstart', function (e) { if (body.classList.contains('menu')) tp = { x: e.touches[0].clientX, p: pan }; }, { passive: true });
-  addEventListener('touchmove', function (e) { if (!tp || menuBusy) return; pan = tp.p + (e.touches[0].clientX - tp.x); repan(); }, { passive: true });
-  addEventListener('touchend', function () { tp = null; });
+  // on a phone a swipe moves one card at most, and lets go with that card centred
+  function pitch() { var S = slots(); return S[1].x - S[0].x; }
+  function panLim(p) { var q = pitch(), c = idx(cur); return Math.max((c - ORDER.length + 1) * q, Math.min(c * q, p)); }
+  addEventListener('touchmove', function (e) {
+    if (!tp || menuBusy) return;
+    var dx = e.touches[0].clientX - tp.x;
+    if (mobile) { var q = pitch(); dx = Math.max(-q, Math.min(q, dx)); pan = panLim(tp.p + dx); } else pan = tp.p + dx;
+    repan();
+  }, { passive: true });
+  addEventListener('touchend', function (e) {
+    if (tp && mobile && body.classList.contains('menu') && !menuBusy) {
+      var q = pitch(), dx = e.changedTouches[0].clientX - tp.x, base = Math.round(tp.p / q) * q;
+      pan = panLim(Math.abs(dx) > 30 ? base + (dx > 0 ? q : -q) : base); repan();
+    }
+    tp = null;
+  });
 
   /* the menu shows every page at once: decode their first photos while the page is idle, so opening the menu never waits on them */
   (window.requestIdleCallback || function (f) { setTimeout(f, 1500); })(function () {
